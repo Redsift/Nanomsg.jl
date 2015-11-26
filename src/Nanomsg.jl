@@ -1,6 +1,6 @@
 module Nanomsg
 
-export Socket, CSymbols, jl_nn_errno_check
+export Socket, CSymbols, jl_nn_errno_check, poll
 export _nn_errno, _nn_strerror, _nn_symbol_info, _NNSymbolProperties
 
 const LIB = @windows ? "nanomsg.dll" : "libnanomsg"
@@ -73,7 +73,11 @@ end
 function Base.send(socket::Socket, msg::Ptr{UInt8}, size::Csize_t, flags::Integer = CSymbols.NN_DONTWAIT)
     rc = _nn_send(socket.s, convert(Ptr{Void}, msg), size, flags)
     if rc == -1
-        throw(NanomsgError("Socket send failed", _nn_errno()))
+    	err = _nn_errno()
+    	if err == CSymbols.EAGAIN
+    		return nothing
+    	end    
+        throw(NanomsgError("Socket send failed", err))
     end
     
     if size != rc
@@ -84,11 +88,16 @@ function Base.send(socket::Socket, msg::Ptr{UInt8}, size::Csize_t, flags::Intege
     return rc
 end
 
+
 function Base.recv(socket::Socket, ::Type{AbstractString}, flags::Integer = CSymbols.NN_DONTWAIT)
     buf = Array(Ptr{Cchar},1)
     rc = _nn_recv(socket.s, convert(Ptr{Void}, pointer(buf)), CSymbols.NN_MSG, flags)
     if rc == -1
-        throw(NanomsgError("Socket recv failed", _nn_errno()))
+    	err = _nn_errno()
+    	if err == CSymbols.EAGAIN
+    		return nothing
+    	end
+        throw(NanomsgError("Socket recv failed", err))
     end
     str = bytestring(buf[1], rc)
     _nn_freemsg(convert(Ptr{Void}, buf[1]))
@@ -98,18 +107,67 @@ function Base.recv(socket::Socket, ::Type{AbstractString}, flags::Integer = CSym
 end
 
 function Base.recv(socket::Socket, flags::Integer = CSymbols.NN_DONTWAIT)
-    buf = Array(Ptr{Cchar},1)
+    buf = Array(Ptr{Cuchar},1)
     rc = _nn_recv(socket.s, convert(Ptr{Void}, pointer(buf)), CSymbols.NN_MSG, flags)
     if rc == -1
-        throw(NanomsgError("Socket recv failed", _nn_errno()))
+    	err = _nn_errno()
+    	if err == CSymbols.EAGAIN
+    		return nothing
+    	end
+        throw(NanomsgError("Socket recv failed", err))
     end
     
-    result::Ptr{Cchar} = buf[1]
+    result::Ptr{Cuchar} = buf[1]
     arr = pointer_to_array(result, rc)
     finalizer(arr, (val) -> @async _nn_freemsg(convert(Ptr{Void}, result)))
 
     #println("recv(a):", length(arr))
     return arr
+end
+
+function poll(sockets::Array{Socket}, pollIn::Bool = true, pollOut::Bool = true, timeout::Integer = -1)
+	const ct = length(sockets)
+	const go = ct > 0
+	const f = 0
+	if pollIn
+		f = CSymbols.NN_POLLIN
+	end
+	if pollOut
+		f |= CSymbols.NN_POLLOUT
+	end
+	
+	const watch = map(s -> _NNPollFD(s.s, f, 0), sockets)
+	const ptr = convert(Ptr{Void}, pointer(watch))
+	
+	@task while go
+		rc = _nn_poll(ptr, convert(Cint, ct), convert(Cint, timeout))
+		if rc == -1
+			throw(NanomsgError("Socket recv failed", _nn_errno()))
+		end
+		
+		if rc == 0
+			# timeout
+			go = false
+			continue
+		end
+		
+		const i = 1
+		for t in watch
+			const rIn = ((t.revents & CSymbols.NN_POLLIN) != 0)
+			const rOut = ((t.revents & CSymbols.NN_POLLOUT) != 0)
+			
+			if rIn || rOut
+				produce((sockets[i], i, rIn, rOut))
+			end
+			i = i + 1
+		end
+	end
+end
+
+immutable _NNPollFD
+    fd::Cint
+    events::Cshort
+    revents::Cshort
 end
 
 # Bit type for direct mapping to C struct
@@ -122,6 +180,7 @@ immutable _NNSymbolProperties
     
     _NNSymbolProperties() = new(0, 0, 0, 0, 0)
 end
+
 function Base.show(io::IO, prop::_NNSymbolProperties) 
 	name = bytestring(prop.name)
 	
@@ -172,7 +231,7 @@ _nn_freemsg(buf::Ptr{Void}) = ccall((:nn_freemsg, LIB), Cint, (Ptr{Void},), buf)
 ####### nn_cmsg(3)
 
 # Multiplexing
-####### nn_poll(3)
+_nn_poll(fds::Ptr{Void}, nfds::Cint, timeout::Cint) = ccall((:nn_poll, LIB), Cint, (Ptr{Void},Cint,Cint), fds, nfds, timeout)
 
 # Retrieve the current errno
 _nn_errno() = ccall((:nn_errno, LIB), Cint, ())
@@ -296,5 +355,19 @@ end
 
 
 
+# Delete ---------
+using Nanomsg
 
+import JSON
+
+const addrs = [ "ipc:///run/dagger/ipc/0.sock", "ipc:///run/dagger/ipc/2.sock" ]
+const socks = map(a -> begin; s = Socket(CSymbols.AF_SP, CSymbols.NN_REP); connect(s, a); return s; end, addrs)
+
+for (sock, i, r, w) in poll(socks, true, false)
+	if r
+		data = recv(sock)
+		dict = JSON.parse(IOBuffer(data))
+		println("IN: from socket at index #$i ", dict)
+	end
+end
 
