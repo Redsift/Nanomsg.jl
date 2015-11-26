@@ -62,15 +62,15 @@ end
 # TODO: Use a in memory IO in addition to the helper string methods
 function Base.send(socket::Socket, msg::AbstractString, flags::Integer = CSymbols.NN_DONTWAIT)
 	size = convert(Csize_t, length(msg.data))
-	send(socket, pointer(msg), size, flags)
+	_send(socket, pointer(msg), size, flags)
 end
 
 function Base.send(socket::Socket, msg::Array{UInt8}, flags::Integer = CSymbols.NN_DONTWAIT)
 	size = convert(Csize_t, length(msg))
-	send(socket, convert(Ptr{UInt8}, msg), size, flags)
+	_send(socket, pointer(msg), size, flags)
 end
 
-function Base.send(socket::Socket, msg::Ptr{UInt8}, size::Csize_t, flags::Integer = CSymbols.NN_DONTWAIT)
+function _send(socket::Socket, msg::Ptr{UInt8}, size::Csize_t, flags::Integer = CSymbols.NN_DONTWAIT)
     rc = _nn_send(socket.s, convert(Ptr{Void}, msg), size, flags)
     if rc == -1
     	err = _nn_errno()
@@ -354,20 +354,4 @@ end
 end
 
 
-
-# Delete ---------
-using Nanomsg
-
-import JSON
-
-const addrs = [ "ipc:///run/dagger/ipc/0.sock", "ipc:///run/dagger/ipc/2.sock" ]
-const socks = map(a -> begin; s = Socket(CSymbols.AF_SP, CSymbols.NN_REP); connect(s, a); return s; end, addrs)
-
-for (sock, i, r, w) in poll(socks, true, false)
-	if r
-		data = recv(sock)
-		dict = JSON.parse(IOBuffer(data))
-		println("IN: from socket at index #$i ", dict)
-	end
-end
 

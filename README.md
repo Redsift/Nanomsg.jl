@@ -4,7 +4,7 @@ For v0.4.x
 
 ## nn_poll
 
-This example reads from 2 IPC sockets in the form of a service loop
+This example reads JSON from 2 IPC sockets in the form of a service loop and sends back some JSON
 
 	using Nanomsg
 
@@ -18,6 +18,10 @@ This example reads from 2 IPC sockets in the form of a service loop
 			data = recv(sock)
 			dict = JSON.parse(IOBuffer(data))
 			println("IN: from socket at index #$i ", dict)
+		
+			buf = IOBuffer() 
+			JSON.print(buf, Dict("stats" => Dict("result" => i)))	
+			send(sock, takebuf_array(buf), CSymbols.NN_NO_FLAG)	
 		end
 	end
 
