@@ -28,7 +28,7 @@ type Socket
         
         maxSize::Cint = -1
         # 0.8-beta max recv size
-        _nn_setsockopt(p, CSymbols.NN_SOL_SOCKET, CSymbols.NN_RCVMAXSIZE, pointer(maxSize), sizeof(maxSize))
+        _nn_setsockopt(p, CSymbols.NN_SOL_SOCKET, CSymbols.NN_RCVMAXSIZE, &maxSize, sizeof(maxSize))
         
         socket = new(p)
         finalizer(socket, close)
