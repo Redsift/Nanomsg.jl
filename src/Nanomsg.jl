@@ -26,6 +26,9 @@ type Socket
             throw(NanomsgError("Socket creation failed", _nn_errno()))
         end
         
+        # 0.8-beta max recv size
+        _nn_setsockopt(p, CSymbols.NN_SOL_SOCKET, CSymbols.NN_RCVMAXSIZE, -1, 4)
+        
         socket = new(p)
         finalizer(socket, close)
         return socket
