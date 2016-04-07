@@ -26,8 +26,9 @@ type Socket
             throw(NanomsgError("Socket creation failed", _nn_errno()))
         end
         
+        maxSize::Cint = -1
         # 0.8-beta max recv size
-        _nn_setsockopt(p, CSymbols.NN_SOL_SOCKET, CSymbols.NN_RCVMAXSIZE, -1, 4)
+        _nn_setsockopt(p, CSymbols.NN_SOL_SOCKET, CSymbols.NN_RCVMAXSIZE, pointer(maxSize), sizeof(maxSize))
         
         socket = new(p)
         finalizer(socket, close)
