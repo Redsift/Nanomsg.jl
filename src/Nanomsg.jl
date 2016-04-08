@@ -26,9 +26,10 @@ type Socket
             throw(NanomsgError("Socket creation failed", _nn_errno()))
         end
         
-        maxSize::Cint = -1
         # 0.8-beta max recv size
-        _nn_setsockopt(p, CSymbols.NN_SOL_SOCKET, CSymbols.NN_RCVMAXSIZE, &maxSize, sizeof(maxSize))
+        maxSize = convert(Ptr{Void}, -1)
+        size = convert(Csize_t, sizeof(maxSize))
+        _nn_setsockopt(p, CSymbols.NN_SOL_SOCKET, CSymbols.NN_RCVMAXSIZE, maxSize, size)
         
         socket = new(p)
         finalizer(socket, close)
@@ -198,10 +199,10 @@ _nn_socket(domain::Cint, protocol::Cint) = ccall((:nn_socket, LIB), Cint, (Cint,
 _nn_close(s::Cint) = ccall((:nn_close, LIB), Cint, (Cint,), s)
 
 # Set a socket option
-_nn_setsockopt(s::Cint, level::Cint, option::Cint, optval::Ptr{Void}, optvallen::Csize_t) = ccall((:nn_setsockopt, LIB), Cint, (Cint, Cint, Ptr{Void}, Csize_t), s, level, option, optval, optvallen)
+_nn_setsockopt(s::Cint, level::Cint, option::Cint, optval::Ptr{Void}, optvallen::Csize_t) = ccall((:nn_setsockopt, LIB), Cint, (Cint, Cint, Cint, Ptr{Void}, Csize_t), s, level, option, optval, optvallen)
 
 # Retrieve a socket option
-_nn_getsockopt(s::Cint, level::Cint, option::Cint, optval::Ptr{Void}, optvallen::Csize_t) = ccall((:nn_getsockopt, LIB), Cint, (Cint, Cint, Ptr{Void}, Csize_t), s, level, option, optval, optvallen)
+_nn_getsockopt(s::Cint, level::Cint, option::Cint, optval::Ptr{Void}, optvallen::Csize_t) = ccall((:nn_getsockopt, LIB), Cint, (Cint, Cint, Cint, Ptr{Void}, Csize_t), s, level, option, optval, optvallen)
 
 # Add a local endpoint to the socket
 _nn_bind(s::Cint, addr::Ptr{UInt8}) = ccall((:nn_bind, LIB), Cint, (Cint,Ptr{UInt8}), s, addr)
