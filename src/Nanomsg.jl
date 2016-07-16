@@ -8,7 +8,7 @@ const LIB = @windows ? "nanomsg.dll" : "libnanomsg"
 type NanomsgError <: Exception
     context::AbstractString
     errno::Cint
-    
+
     NanomsgError(m) = new(m,0)
     NanomsgError(m,e) = new(m,e)
 end
@@ -25,12 +25,12 @@ type Socket
         if p == -1
             throw(NanomsgError("Socket creation failed", _nn_errno()))
         end
-        
+
         # 0.8-beta max recv size
         maxSize = convert(Ptr{Void}, -1)
         size = convert(Csize_t, sizeof(maxSize))
         _nn_setsockopt(p, CSymbols.NN_SOL_SOCKET, CSymbols.NN_RCVMAXSIZE, maxSize, size)
-        
+
         socket = new(p)
         finalizer(socket, close)
         return socket
@@ -81,14 +81,14 @@ function _send(socket::Socket, msg::Ptr{UInt8}, size::Csize_t, flags::Integer = 
     	err = _nn_errno()
     	if err == CSymbols.EAGAIN
     		return nothing
-    	end    
+    	end
         throw(NanomsgError("Socket send failed", err))
     end
-    
+
     if size != rc
-    	throw(NanomsgError("Socket sent bytes $rc != $size failed")) 
+    	throw(NanomsgError("Socket sent bytes $rc != $size failed"))
     end
-    
+
     # println("sent:", rc)
     return rc
 end
@@ -106,7 +106,7 @@ function Base.recv(socket::Socket, ::Type{AbstractString}, flags::Integer = CSym
     end
     str = bytestring(buf[1], rc)
     _nn_freemsg(convert(Ptr{Void}, buf[1]))
-    
+
     # println("recv(s):", rc, str)
     return str
 end
@@ -121,7 +121,7 @@ function Base.recv(socket::Socket, flags::Integer = CSymbols.NN_DONTWAIT)
     	end
         throw(NanomsgError("Socket recv failed", err))
     end
-    
+
     result::Ptr{Cuchar} = buf[1]
     arr = pointer_to_array(result, rc)
     finalizer(arr, (val) -> @async _nn_freemsg(convert(Ptr{Void}, result)))
@@ -140,27 +140,27 @@ function poll(sockets::Array{Socket}, pollIn::Bool = true, pollOut::Bool = true,
 	if pollOut
 		f |= CSymbols.NN_POLLOUT
 	end
-	
+
 	const watch = map(s -> _NNPollFD(s.s, f, 0), sockets)
 	const ptr = convert(Ptr{Void}, pointer(watch))
-	
+
 	@task while go
 		rc = _nn_poll(ptr, convert(Cint, ct), convert(Cint, timeout))
 		if rc == -1
 			throw(NanomsgError("Socket recv failed", _nn_errno()))
 		end
-		
+
 		if rc == 0
 			# timeout
 			go = false
 			continue
 		end
-		
+
 		const i = 1
 		for t in watch
 			const rIn = ((t.revents & CSymbols.NN_POLLIN) != 0)
 			const rOut = ((t.revents & CSymbols.NN_POLLOUT) != 0)
-			
+
 			if rIn || rOut
 				produce((sockets[i], i, rIn, rOut))
 			end
@@ -182,13 +182,13 @@ immutable _NNSymbolProperties
     ns::Cint
     typ::Cint
     unit::Cint
-    
+
     _NNSymbolProperties() = new(0, 0, 0, 0, 0)
 end
 
-function Base.show(io::IO, prop::_NNSymbolProperties) 
+function Base.show(io::IO, prop::_NNSymbolProperties)
 	name = bytestring(prop.name)
-	
+
 	print(io, "_NNSymbolProperties: value=", prop.value, " name=", name, ", namespace=", prop.ns, ", type=", prop.typ, ", unit=", prop.unit)
 end
 
@@ -226,8 +226,8 @@ _nn_recv(s::Cint, buf::Ptr{Void}, len::Csize_t, flags::Cint) = ccall((:nn_recv, 
 ####### nn_recvmsg(3)
 
 # Allocation of messages
-####### nn_allocmsg(3) 
-####### nn_reallocmsg(3) 
+####### nn_allocmsg(3)
+####### nn_reallocmsg(3)
 
 _nn_freemsg(buf::Ptr{Void}) = ccall((:nn_freemsg, LIB), Cint, (Ptr{Void},), buf)
 
@@ -253,7 +253,7 @@ function nn_strerror(errno::Cint)
 		else
 			return "Unknown errno"
 		end
-			
+
 	end
 end
 
@@ -269,20 +269,20 @@ end
 _nn_symbol(i::Cint, value::Ptr{UInt8}) = ccall((:nn_symbol, LIB), Ptr{UInt8}, (Cint,Ptr{Cint}), i, value)
 
 # Query properties of nanomsg symbols
-function _nn_symbol_info(i::Cint) 
+function _nn_symbol_info(i::Cint)
 	buflen = sizeof(_NNSymbolProperties)
 	buf = Array(UInt8,buflen)
 
 	r = ccall((:nn_symbol_info, LIB), Cint, (Cint,Ptr{UInt8},Csize_t), i, buf, buflen)
-	
+
 	if r == 0
 		return nothing
 	end
-	
+
 	if r != buflen
-		throw(NanomsgError("Failed to query symbol info: " * r)) 
+		throw(NanomsgError("Failed to query symbol info: " * r))
 	end
-	
+
 	ptr = convert(Ptr{_NNSymbolProperties}, pointer(buf))
 	unsafe_load(ptr)
 end
@@ -301,20 +301,20 @@ function j_nn_load_symbols()
 		if value == nothing
 			break
 		end
-		
+
 		entry = get(symbols, value.ns, Dict{Cint, AbstractString}())
 		entry[value.value] = bytestring(value.name)
 		symbols[value.ns] = entry
 		index = index + 1
 	end
-	
+
 	symbols
 end
 
 macro load_symbols()
 	blk = quote
 	end
-	
+
 	symbols = CSymbols.J_NN_MAP
 	ns = symbols[0]
 	rstr = string("")
@@ -322,19 +322,19 @@ macro load_symbols()
 		rstr = string(rstr, string("$k=$v\n"))
 		ks = symbol(k)
 		push!(blk.args, Expr(:module, false, esc(ks::Symbol), Expr(:begin)))
-		
+
 		if v == 0
 			# Namespace itself, skip as the constants will appear later
 			continue
-		end		
-		
+		end
+
 		for (ev, ek) in symbols[v]
 			rstr = string(rstr, string("\t$ek=$ev\n"))
 			eks = symbol(ek)
 			push!(blk.args, :(const $(esc(eks)) = $ev))
 		end
 	end
-	
+
 	push!(blk.args, :(const $(Expr(:escape, :J_NN_ALL)) = $rstr))
 	#println(blk)
 	push!(blk.args, :nothing)
@@ -342,21 +342,19 @@ macro load_symbols()
 	return blk
 end
 
-# This module is dynamically loaded with constants from the 
+# This module is dynamically loaded with constants from the
 # nanomg library. Refer to the official docs for a list
 baremodule CSymbols
 	using Base
 	using Nanomsg.j_nn_load_symbols
 	using Nanomsg.@load_symbols
-	
+
 	const J_NN_MAP = j_nn_load_symbols()
-	
+
 	const NN_MSG = ~convert(Csize_t, 0)
 	const NN_NO_FLAG = convert(Cint, 0)
+	const NN_DONTWAIT = convert(Cint, 1)
 	@load_symbols()
 end
 
 end
-
-
-
