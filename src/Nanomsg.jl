@@ -3,7 +3,7 @@ module Nanomsg
 export Socket, CSymbols, jl_nn_errno_check, poll
 export _nn_errno, _nn_strerror, _nn_symbol_info, _NNSymbolProperties
 
-const LIB = @windows ? "nanomsg.dll" : "libnanomsg"
+const LIB = @static is_windows() ? "nanomsg.dll" : "libnanomsg"
 
 type NanomsgError <: Exception
     context::AbstractString
@@ -303,7 +303,7 @@ function j_nn_load_symbols()
 		end
 
 		entry = get(symbols, value.ns, Dict{Cint, AbstractString}())
-		entry[value.value] = bytestring(value.name)
+		entry[value.value] = unsafe_string(value.name)
 		symbols[value.ns] = entry
 		index = index + 1
 	end
@@ -320,7 +320,7 @@ macro load_symbols()
 	rstr = string("")
 	for (v,k) in ns
 		rstr = string(rstr, string("$k=$v\n"))
-		ks = symbol(k)
+		ks = Symbol(k)
 		push!(blk.args, Expr(:module, false, esc(ks::Symbol), Expr(:begin)))
 
 		if v == 0
@@ -330,7 +330,7 @@ macro load_symbols()
 
 		for (ev, ek) in symbols[v]
 			rstr = string(rstr, string("\t$ek=$ev\n"))
-			eks = symbol(ek)
+			eks = Symbol(ek)
 			push!(blk.args, :(const $(esc(eks)) = $ev))
 		end
 	end
