@@ -199,10 +199,10 @@ _nn_socket(domain::Cint, protocol::Cint) = ccall((:nn_socket, LIB), Cint, (Cint,
 _nn_close(s::Cint) = ccall((:nn_close, LIB), Cint, (Cint,), s)
 
 # Set a socket option
-_nn_setsockopt(s::Cint, level::Cint, option::Cint, optval::Ptr{Void}, optvallen::Csize_t) = ccall((:nn_setsockopt, LIB), Cint, (Cint, Cint, Cint, Ptr{Void}, Csize_t), s, level, option, optval, optvallen)
+_nn_setsockopt(s::Cint, level::Cint, option::Cint, optval::Ptr{Nothing}, optvallen::Csize_t) = ccall((:nn_setsockopt, LIB), Cint, (Cint, Cint, Cint, Ptr{Nothing}, Csize_t), s, level, option, optval, optvallen)
 
 # Retrieve a socket option
-_nn_getsockopt(s::Cint, level::Cint, option::Cint, optval::Ptr{Void}, optvallen::Csize_t) = ccall((:nn_getsockopt, LIB), Cint, (Cint, Cint, Cint, Ptr{Void}, Csize_t), s, level, option, optval, optvallen)
+_nn_getsockopt(s::Cint, level::Cint, option::Cint, optval::Ptr{Nothing}, optvallen::Csize_t) = ccall((:nn_getsockopt, LIB), Cint, (Cint, Cint, Cint, Ptr{Nothing}, Csize_t), s, level, option, optval, optvallen)
 
 # Add a local endpoint to the socket
 _nn_bind(s::Cint, addr::Ptr{UInt8}) = ccall((:nn_bind, LIB), Cint, (Cint,Ptr{UInt8}), s, addr)
@@ -214,10 +214,10 @@ _nn_connect(s::Cint, addr::Ptr{UInt8}) = ccall((:nn_connect, LIB), Cint, (Cint,P
 _nn_shutdown(s::Cint, how::Cint) = ccall((:nn_shutdown, LIB), Cint, (Cint,Cint), s, how)
 
 # Send a message
-_nn_send(s::Cint, buf::Ptr{Void}, len::Csize_t, flags::Cint) = ccall((:nn_send, LIB), Cint, (Cint,Ptr{Void},Csize_t,Cint), s, buf, len, flags)
+_nn_send(s::Cint, buf::Ptr{Nothing}, len::Csize_t, flags::Cint) = ccall((:nn_send, LIB), Cint, (Cint,Ptr{Nothing},Csize_t,Cint), s, buf, len, flags)
 
 # Receive a message
-_nn_recv(s::Cint, buf::Ptr{Void}, len::Csize_t, flags::Cint) = ccall((:nn_recv, LIB), Cint, (Cint,Ptr{Void},Csize_t,Cint), s, buf, len, flags)
+_nn_recv(s::Cint, buf::Ptr{Nothing}, len::Csize_t, flags::Cint) = ccall((:nn_recv, LIB), Cint, (Cint,Ptr{Nothing},Csize_t,Cint), s, buf, len, flags)
 
 # Fine-grained alternative to nn_send
 ####### nn_sendmsg(3)
@@ -229,14 +229,14 @@ _nn_recv(s::Cint, buf::Ptr{Void}, len::Csize_t, flags::Cint) = ccall((:nn_recv, 
 ####### nn_allocmsg(3)
 ####### nn_reallocmsg(3)
 
-_nn_freemsg(buf::Ptr{Void}) = ccall((:nn_freemsg, LIB), Cint, (Ptr{Void},), buf)
+_nn_freemsg(buf::Ptr{Nothing}) = ccall((:nn_freemsg, LIB), Cint, (Ptr{Nothing},), buf)
 
 
 # Manipulation of message control data
 ####### nn_cmsg(3)
 
 # Multiplexing
-_nn_poll(fds::Ptr{Void}, nfds::Cint, timeout::Cint) = ccall((:nn_poll, LIB), Cint, (Ptr{Void},Cint,Cint), fds, nfds, timeout)
+_nn_poll(fds::Ptr{Nothing}, nfds::Cint, timeout::Cint) = ccall((:nn_poll, LIB), Cint, (Ptr{Nothing},Cint,Cint), fds, nfds, timeout)
 
 # Retrieve the current errno
 _nn_errno() = ccall((:nn_errno, LIB), Cint, ())
@@ -291,7 +291,7 @@ end
 _nn_device(s1::Cint, s2::Cint) = ccall((:nn_device, LIB), Cint, (Cint,Cint), s1, s2)
 
 # Notify all sockets about process termination
-_nn_term() = ccall((:nn_term, LIB), Void, ())
+_nn_term() = ccall((:nn_term, LIB), Nothing, ())
 
 function j_nn_load_symbols()
 	symbols = Dict{Cint, Dict{Cint, AbstractString}}()
