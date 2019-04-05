@@ -34,7 +34,7 @@ mutable struct Socket
         _nn_setsockopt(p, CSymbols.NN_SOL_SOCKET, CSymbols.NN_RCVMAXSIZE, maxSize, size)
 
         socket = new(p)
-        finalizer(socket, close)
+        finalizer(close, socket)
         return socket
     end
 end
@@ -126,7 +126,7 @@ function Sockets.recv(socket::Socket, flags::Integer = CSymbols.NN_DONTWAIT)
 
     result::Ptr{Cuchar} = buf[1]
     arr = pointer_to_array(result, rc)
-    finalizer(arr, (val) -> @async _nn_freemsg(convert(Ptr{Void}, result)))
+    finalizer((val) -> @async _nn_freemsg(convert(Ptr{Nothing}, result)), arr)
 
     #println("recv(a):", length(arr))
     return arr
