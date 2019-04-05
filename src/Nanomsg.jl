@@ -347,7 +347,7 @@ end
 baremodule CSymbols
 	using Base
 	using Sockets
-	using Nanomsg.j_nn_load_symbols
+	using Nanomsg: j_nn_load_symbols
 	using Nanomsg.@load_symbols
 
 	const J_NN_MAP = j_nn_load_symbols()
