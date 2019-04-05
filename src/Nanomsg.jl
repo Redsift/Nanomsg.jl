@@ -29,7 +29,7 @@ mutable struct Socket
         end
 
         # 0.8-beta max recv size
-        maxSize = convert(Ptr{Void}, -1)
+        maxSize = convert(Ptr{Nothing}, -1)
         size = convert(Csize_t, sizeof(maxSize))
         _nn_setsockopt(p, CSymbols.NN_SOL_SOCKET, CSymbols.NN_RCVMAXSIZE, maxSize, size)
 
@@ -78,7 +78,7 @@ function Sockets.send(socket::Socket, msg::Array{UInt8}, flags::Integer = CSymbo
 end
 
 function _send(socket::Socket, msg::Ptr{UInt8}, size::Csize_t, flags::Integer = CSymbols.NN_DONTWAIT)
-    rc = _nn_send(socket.s, convert(Ptr{Void}, msg), size, flags)
+    rc = _nn_send(socket.s, convert(Ptr{Nothing}, msg), size, flags)
     if rc == -1
     	err = _nn_errno()
     	if err == CSymbols.EAGAIN
@@ -98,7 +98,7 @@ end
 
 function Sockets.recv(socket::Socket, ::Type{AbstractString}, flags::Integer = CSymbols.NN_DONTWAIT)
     buf = Array{Ptr{Cchar}}(undef, 1)
-    rc = _nn_recv(socket.s, convert(Ptr{Void}, pointer(buf)), CSymbols.NN_MSG, flags)
+    rc = _nn_recv(socket.s, convert(Ptr{Nothing}, pointer(buf)), CSymbols.NN_MSG, flags)
     if rc == -1
     	err = _nn_errno()
     	if err == CSymbols.EAGAIN
@@ -107,7 +107,7 @@ function Sockets.recv(socket::Socket, ::Type{AbstractString}, flags::Integer = C
         throw(NanomsgError("Socket recv failed", err))
     end
     str = bytestring(buf[1], rc)
-    _nn_freemsg(convert(Ptr{Void}, buf[1]))
+    _nn_freemsg(convert(Ptr{Nothing}, buf[1]))
 
     # println("recv(s):", rc, str)
     return str
@@ -115,7 +115,7 @@ end
 
 function Sockets.recv(socket::Socket, flags::Integer = CSymbols.NN_DONTWAIT)
     buf = Array{Ptr{Cuchar}}(undef, 1)
-    rc = _nn_recv(socket.s, convert(Ptr{Void}, pointer(buf)), CSymbols.NN_MSG, flags)
+    rc = _nn_recv(socket.s, convert(Ptr{Nothing}, pointer(buf)), CSymbols.NN_MSG, flags)
     if rc == -1
     	err = _nn_errno()
     	if err == CSymbols.EAGAIN
@@ -144,7 +144,7 @@ function poll(sockets::Array{Socket}, pollIn::Bool = true, pollOut::Bool = true,
 	end
 
 	watch = map(s -> _NNPollFD(s.s, f, 0), sockets)
-	ptr = convert(Ptr{Void}, pointer(watch))
+	ptr = convert(Ptr{Nothing}, pointer(watch))
 
 	@task while go
 		rc = _nn_poll(ptr, convert(Cint, ct), convert(Cint, timeout))
