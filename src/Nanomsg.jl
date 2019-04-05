@@ -56,7 +56,7 @@ function Base.bind(socket::Socket, endpoint::AbstractString)
     nothing
 end
 
-function Base.connect(socket::Socket, endpoint::AbstractString)
+function Sockets.connect(socket::Socket, endpoint::AbstractString)
     rc = _nn_connect(socket.s, pointer(endpoint))
     if rc == -1
         throw(NanomsgError("Socket connect failed", _nn_errno()))
@@ -65,12 +65,12 @@ function Base.connect(socket::Socket, endpoint::AbstractString)
 end
 
 # TODO: Use a in memory IO in addition to the helper string methods
-function Base.send(socket::Socket, msg::AbstractString, flags::Integer = CSymbols.NN_DONTWAIT)
+function Sockets.send(socket::Socket, msg::AbstractString, flags::Integer = CSymbols.NN_DONTWAIT)
 	size = convert(Csize_t, length(msg.data))
 	_send(socket, pointer(msg), size, flags)
 end
 
-function Base.send(socket::Socket, msg::Array{UInt8}, flags::Integer = CSymbols.NN_DONTWAIT)
+function Sockets.send(socket::Socket, msg::Array{UInt8}, flags::Integer = CSymbols.NN_DONTWAIT)
 	size = convert(Csize_t, length(msg))
 	_send(socket, pointer(msg), size, flags)
 end
@@ -94,7 +94,7 @@ function _send(socket::Socket, msg::Ptr{UInt8}, size::Csize_t, flags::Integer = 
 end
 
 
-function Base.recv(socket::Socket, ::Type{AbstractString}, flags::Integer = CSymbols.NN_DONTWAIT)
+function Sockets.recv(socket::Socket, ::Type{AbstractString}, flags::Integer = CSymbols.NN_DONTWAIT)
     buf = Array{Ptr{Cchar}}(1)
     rc = _nn_recv(socket.s, convert(Ptr{Void}, pointer(buf)), CSymbols.NN_MSG, flags)
     if rc == -1
@@ -111,7 +111,7 @@ function Base.recv(socket::Socket, ::Type{AbstractString}, flags::Integer = CSym
     return str
 end
 
-function Base.recv(socket::Socket, flags::Integer = CSymbols.NN_DONTWAIT)
+function Sockets.recv(socket::Socket, flags::Integer = CSymbols.NN_DONTWAIT)
     buf = Array{Ptr{Cuchar}}(1)
     rc = _nn_recv(socket.s, convert(Ptr{Void}, pointer(buf)), CSymbols.NN_MSG, flags)
     if rc == -1
@@ -346,6 +346,7 @@ end
 # nanomg library. Refer to the official docs for a list
 baremodule CSymbols
 	using Base
+	using Sockets
 	using Nanomsg.j_nn_load_symbols
 	using Nanomsg.@load_symbols
 
