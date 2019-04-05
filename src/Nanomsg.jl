@@ -1,5 +1,7 @@
 module Nanomsg
 
+using Sockets
+
 export Socket, CSymbols, jl_nn_errno_check, poll
 export _nn_errno, _nn_strerror, _nn_symbol_info, _NNSymbolProperties
 
@@ -346,9 +348,8 @@ end
 # nanomg library. Refer to the official docs for a list
 baremodule CSymbols
 	using Base
-	using Sockets
 	using Nanomsg: j_nn_load_symbols
-	using Nanomsg.@load_symbols
+	using Nanomsg: @load_symbols
 
 	const J_NN_MAP = j_nn_load_symbols()
 
