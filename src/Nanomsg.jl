@@ -169,14 +169,14 @@ function poll(sockets::Array{Socket}, pollIn::Bool = true, pollOut::Bool = true,
 	end
 end
 
-immutable _NNPollFD
+struct _NNPollFD
     fd::Cint
     events::Cshort
     revents::Cshort
 end
 
 # Bit type for direct mapping to C struct
-immutable _NNSymbolProperties
+struct _NNSymbolProperties
     value::Cint
     name::Ptr{UInt8}
     ns::Cint
