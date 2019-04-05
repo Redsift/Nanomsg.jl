@@ -131,9 +131,9 @@ function Sockets.recv(socket::Socket, flags::Integer = CSymbols.NN_DONTWAIT)
 end
 
 function poll(sockets::Array{Socket}, pollIn::Bool = true, pollOut::Bool = true, timeout::Integer = -1)
-	const ct = length(sockets)
-	const go = ct > 0
-	const f = 0
+	ct = length(sockets)
+	go = ct > 0
+	f = 0
 	if pollIn
 		f = CSymbols.NN_POLLIN
 	end
@@ -141,8 +141,8 @@ function poll(sockets::Array{Socket}, pollIn::Bool = true, pollOut::Bool = true,
 		f |= CSymbols.NN_POLLOUT
 	end
 
-	const watch = map(s -> _NNPollFD(s.s, f, 0), sockets)
-	const ptr = convert(Ptr{Void}, pointer(watch))
+	watch = map(s -> _NNPollFD(s.s, f, 0), sockets)
+	ptr = convert(Ptr{Void}, pointer(watch))
 
 	@task while go
 		rc = _nn_poll(ptr, convert(Cint, ct), convert(Cint, timeout))
@@ -156,10 +156,10 @@ function poll(sockets::Array{Socket}, pollIn::Bool = true, pollOut::Bool = true,
 			continue
 		end
 
-		const i = 1
+		i = 1
 		for t in watch
-			const rIn = ((t.revents & CSymbols.NN_POLLIN) != 0)
-			const rOut = ((t.revents & CSymbols.NN_POLLOUT) != 0)
+			rIn = ((t.revents & CSymbols.NN_POLLIN) != 0)
+			rOut = ((t.revents & CSymbols.NN_POLLOUT) != 0)
 
 			if rIn || rOut
 				produce((sockets[i], i, rIn, rOut))
