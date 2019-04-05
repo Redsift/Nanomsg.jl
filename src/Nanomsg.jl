@@ -3,7 +3,7 @@ module Nanomsg
 export Socket, CSymbols, jl_nn_errno_check, poll
 export _nn_errno, _nn_strerror, _nn_symbol_info, _NNSymbolProperties
 
-const LIB = @static is_windows() ? "nanomsg.dll" : "libnanomsg"
+const LIB = @static Sys.iswindows() ? "nanomsg.dll" : "libnanomsg"
 
 mutable struct NanomsgError <: Exception
     context::AbstractString
