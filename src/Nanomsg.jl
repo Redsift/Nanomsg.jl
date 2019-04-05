@@ -5,7 +5,7 @@ export _nn_errno, _nn_strerror, _nn_symbol_info, _NNSymbolProperties
 
 const LIB = @static is_windows() ? "nanomsg.dll" : "libnanomsg"
 
-type NanomsgError <: Exception
+mutable struct NanomsgError <: Exception
     context::AbstractString
     errno::Cint
 
@@ -17,7 +17,7 @@ function Base.show(io::IO, err::NanomsgError)
 	print(io, (err.errno == 0 ? "Nanomsg.jl error, " : "Nanomsg.lib error, errno=$(err.errno), message=$(nn_strerror(err.errno)), "), err.context)
 end
 
-type Socket
+mutable struct Socket
     s::Cint
 
     function Socket(domain::Integer, protocol::Integer)
