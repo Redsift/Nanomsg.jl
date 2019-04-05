@@ -95,7 +95,7 @@ end
 
 
 function Sockets.recv(socket::Socket, ::Type{AbstractString}, flags::Integer = CSymbols.NN_DONTWAIT)
-    buf = Array{Ptr{Cchar}}(1)
+    buf = Array{Ptr{Cchar}}(undef, 1)
     rc = _nn_recv(socket.s, convert(Ptr{Void}, pointer(buf)), CSymbols.NN_MSG, flags)
     if rc == -1
     	err = _nn_errno()
@@ -112,7 +112,7 @@ function Sockets.recv(socket::Socket, ::Type{AbstractString}, flags::Integer = C
 end
 
 function Sockets.recv(socket::Socket, flags::Integer = CSymbols.NN_DONTWAIT)
-    buf = Array{Ptr{Cuchar}}(1)
+    buf = Array{Ptr{Cuchar}}(undef, 1)
     rc = _nn_recv(socket.s, convert(Ptr{Void}, pointer(buf)), CSymbols.NN_MSG, flags)
     if rc == -1
     	err = _nn_errno()
@@ -271,7 +271,7 @@ _nn_symbol(i::Cint, value::Ptr{UInt8}) = ccall((:nn_symbol, LIB), Ptr{UInt8}, (C
 # Query properties of nanomsg symbols
 function _nn_symbol_info(i::Cint)
 	buflen = sizeof(_NNSymbolProperties)
-	buf = Array{UInt8}(buflen)
+	buf = Array{UInt8}(undef, buflen)
 
 	r = ccall((:nn_symbol_info, LIB), Cint, (Cint,Ptr{UInt8},Csize_t), i, buf, buflen)
 
