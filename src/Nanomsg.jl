@@ -1,11 +1,13 @@
 module Nanomsg
 
+using Sockets
+
 export Socket, CSymbols, jl_nn_errno_check, poll
 export _nn_errno, _nn_strerror, _nn_symbol_info, _NNSymbolProperties
 
-const LIB = @static is_windows() ? "nanomsg.dll" : "libnanomsg"
+const LIB = @static Sys.iswindows() ? "nanomsg.dll" : "libnanomsg"
 
-type NanomsgError <: Exception
+mutable struct NanomsgError <: Exception
     context::AbstractString
     errno::Cint
 
@@ -17,7 +19,7 @@ function Base.show(io::IO, err::NanomsgError)
 	print(io, (err.errno == 0 ? "Nanomsg.jl error, " : "Nanomsg.lib error, errno=$(err.errno), message=$(nn_strerror(err.errno)), "), err.context)
 end
 
-type Socket
+mutable struct Socket
     s::Cint
 
     function Socket(domain::Integer, protocol::Integer)
@@ -27,12 +29,12 @@ type Socket
         end
 
         # 0.8-beta max recv size
-        maxSize = convert(Ptr{Void}, -1)
+        maxSize = convert(Ptr{Nothing}, -1)
         size = convert(Csize_t, sizeof(maxSize))
         _nn_setsockopt(p, CSymbols.NN_SOL_SOCKET, CSymbols.NN_RCVMAXSIZE, maxSize, size)
 
         socket = new(p)
-        finalizer(socket, close)
+        finalizer(close, socket)
         return socket
     end
 end
@@ -56,7 +58,7 @@ function Base.bind(socket::Socket, endpoint::AbstractString)
     nothing
 end
 
-function Base.connect(socket::Socket, endpoint::AbstractString)
+function Sockets.connect(socket::Socket, endpoint::AbstractString)
     rc = _nn_connect(socket.s, pointer(endpoint))
     if rc == -1
         throw(NanomsgError("Socket connect failed", _nn_errno()))
@@ -65,18 +67,18 @@ function Base.connect(socket::Socket, endpoint::AbstractString)
 end
 
 # TODO: Use a in memory IO in addition to the helper string methods
-function Base.send(socket::Socket, msg::AbstractString, flags::Integer = CSymbols.NN_DONTWAIT)
+function Sockets.send(socket::Socket, msg::AbstractString, flags::Integer = CSymbols.NN_DONTWAIT)
 	size = convert(Csize_t, length(msg.data))
 	_send(socket, pointer(msg), size, flags)
 end
 
-function Base.send(socket::Socket, msg::Array{UInt8}, flags::Integer = CSymbols.NN_DONTWAIT)
+function Sockets.send(socket::Socket, msg::Array{UInt8}, flags::Integer = CSymbols.NN_DONTWAIT)
 	size = convert(Csize_t, length(msg))
 	_send(socket, pointer(msg), size, flags)
 end
 
 function _send(socket::Socket, msg::Ptr{UInt8}, size::Csize_t, flags::Integer = CSymbols.NN_DONTWAIT)
-    rc = _nn_send(socket.s, convert(Ptr{Void}, msg), size, flags)
+    rc = _nn_send(socket.s, convert(Ptr{Nothing}, msg), size, flags)
     if rc == -1
     	err = _nn_errno()
     	if err == CSymbols.EAGAIN
@@ -94,9 +96,9 @@ function _send(socket::Socket, msg::Ptr{UInt8}, size::Csize_t, flags::Integer = 
 end
 
 
-function Base.recv(socket::Socket, ::Type{AbstractString}, flags::Integer = CSymbols.NN_DONTWAIT)
-    buf = Array{Ptr{Cchar}}(1)
-    rc = _nn_recv(socket.s, convert(Ptr{Void}, pointer(buf)), CSymbols.NN_MSG, flags)
+function Sockets.recv(socket::Socket, ::Type{AbstractString}, flags::Integer = CSymbols.NN_DONTWAIT)
+    buf = Array{Ptr{Cchar}}(undef, 1)
+    rc = _nn_recv(socket.s, convert(Ptr{Nothing}, pointer(buf)), CSymbols.NN_MSG, flags)
     if rc == -1
     	err = _nn_errno()
     	if err == CSymbols.EAGAIN
@@ -105,15 +107,15 @@ function Base.recv(socket::Socket, ::Type{AbstractString}, flags::Integer = CSym
         throw(NanomsgError("Socket recv failed", err))
     end
     str = bytestring(buf[1], rc)
-    _nn_freemsg(convert(Ptr{Void}, buf[1]))
+    _nn_freemsg(convert(Ptr{Nothing}, buf[1]))
 
     # println("recv(s):", rc, str)
     return str
 end
 
-function Base.recv(socket::Socket, flags::Integer = CSymbols.NN_DONTWAIT)
-    buf = Array{Ptr{Cuchar}}(1)
-    rc = _nn_recv(socket.s, convert(Ptr{Void}, pointer(buf)), CSymbols.NN_MSG, flags)
+function Sockets.recv(socket::Socket, flags::Integer = CSymbols.NN_DONTWAIT)
+    buf = Array{Ptr{Cuchar}}(undef, 1)
+    rc = _nn_recv(socket.s, convert(Ptr{Nothing}, pointer(buf)), CSymbols.NN_MSG, flags)
     if rc == -1
     	err = _nn_errno()
     	if err == CSymbols.EAGAIN
@@ -124,16 +126,16 @@ function Base.recv(socket::Socket, flags::Integer = CSymbols.NN_DONTWAIT)
 
     result::Ptr{Cuchar} = buf[1]
     arr = pointer_to_array(result, rc)
-    finalizer(arr, (val) -> @async _nn_freemsg(convert(Ptr{Void}, result)))
+    finalizer((val) -> @async _nn_freemsg(convert(Ptr{Nothing}, result)), arr)
 
     #println("recv(a):", length(arr))
     return arr
 end
 
 function poll(sockets::Array{Socket}, pollIn::Bool = true, pollOut::Bool = true, timeout::Integer = -1)
-	const ct = length(sockets)
-	const go = ct > 0
-	const f = 0
+	ct = length(sockets)
+	go = ct > 0
+	f = 0
 	if pollIn
 		f = CSymbols.NN_POLLIN
 	end
@@ -141,8 +143,8 @@ function poll(sockets::Array{Socket}, pollIn::Bool = true, pollOut::Bool = true,
 		f |= CSymbols.NN_POLLOUT
 	end
 
-	const watch = map(s -> _NNPollFD(s.s, f, 0), sockets)
-	const ptr = convert(Ptr{Void}, pointer(watch))
+	watch = map(s -> _NNPollFD(s.s, f, 0), sockets)
+	ptr = convert(Ptr{Nothing}, pointer(watch))
 
 	@task while go
 		rc = _nn_poll(ptr, convert(Cint, ct), convert(Cint, timeout))
@@ -156,10 +158,10 @@ function poll(sockets::Array{Socket}, pollIn::Bool = true, pollOut::Bool = true,
 			continue
 		end
 
-		const i = 1
+		i = 1
 		for t in watch
-			const rIn = ((t.revents & CSymbols.NN_POLLIN) != 0)
-			const rOut = ((t.revents & CSymbols.NN_POLLOUT) != 0)
+			rIn = ((t.revents & CSymbols.NN_POLLIN) != 0)
+			rOut = ((t.revents & CSymbols.NN_POLLOUT) != 0)
 
 			if rIn || rOut
 				produce((sockets[i], i, rIn, rOut))
@@ -169,14 +171,14 @@ function poll(sockets::Array{Socket}, pollIn::Bool = true, pollOut::Bool = true,
 	end
 end
 
-immutable _NNPollFD
+struct _NNPollFD
     fd::Cint
     events::Cshort
     revents::Cshort
 end
 
 # Bit type for direct mapping to C struct
-immutable _NNSymbolProperties
+struct _NNSymbolProperties
     value::Cint
     name::Ptr{UInt8}
     ns::Cint
@@ -199,10 +201,10 @@ _nn_socket(domain::Cint, protocol::Cint) = ccall((:nn_socket, LIB), Cint, (Cint,
 _nn_close(s::Cint) = ccall((:nn_close, LIB), Cint, (Cint,), s)
 
 # Set a socket option
-_nn_setsockopt(s::Cint, level::Cint, option::Cint, optval::Ptr{Void}, optvallen::Csize_t) = ccall((:nn_setsockopt, LIB), Cint, (Cint, Cint, Cint, Ptr{Void}, Csize_t), s, level, option, optval, optvallen)
+_nn_setsockopt(s::Cint, level::Cint, option::Cint, optval::Ptr{Nothing}, optvallen::Csize_t) = ccall((:nn_setsockopt, LIB), Cint, (Cint, Cint, Cint, Ptr{Nothing}, Csize_t), s, level, option, optval, optvallen)
 
 # Retrieve a socket option
-_nn_getsockopt(s::Cint, level::Cint, option::Cint, optval::Ptr{Void}, optvallen::Csize_t) = ccall((:nn_getsockopt, LIB), Cint, (Cint, Cint, Cint, Ptr{Void}, Csize_t), s, level, option, optval, optvallen)
+_nn_getsockopt(s::Cint, level::Cint, option::Cint, optval::Ptr{Nothing}, optvallen::Csize_t) = ccall((:nn_getsockopt, LIB), Cint, (Cint, Cint, Cint, Ptr{Nothing}, Csize_t), s, level, option, optval, optvallen)
 
 # Add a local endpoint to the socket
 _nn_bind(s::Cint, addr::Ptr{UInt8}) = ccall((:nn_bind, LIB), Cint, (Cint,Ptr{UInt8}), s, addr)
@@ -214,10 +216,10 @@ _nn_connect(s::Cint, addr::Ptr{UInt8}) = ccall((:nn_connect, LIB), Cint, (Cint,P
 _nn_shutdown(s::Cint, how::Cint) = ccall((:nn_shutdown, LIB), Cint, (Cint,Cint), s, how)
 
 # Send a message
-_nn_send(s::Cint, buf::Ptr{Void}, len::Csize_t, flags::Cint) = ccall((:nn_send, LIB), Cint, (Cint,Ptr{Void},Csize_t,Cint), s, buf, len, flags)
+_nn_send(s::Cint, buf::Ptr{Nothing}, len::Csize_t, flags::Cint) = ccall((:nn_send, LIB), Cint, (Cint,Ptr{Nothing},Csize_t,Cint), s, buf, len, flags)
 
 # Receive a message
-_nn_recv(s::Cint, buf::Ptr{Void}, len::Csize_t, flags::Cint) = ccall((:nn_recv, LIB), Cint, (Cint,Ptr{Void},Csize_t,Cint), s, buf, len, flags)
+_nn_recv(s::Cint, buf::Ptr{Nothing}, len::Csize_t, flags::Cint) = ccall((:nn_recv, LIB), Cint, (Cint,Ptr{Nothing},Csize_t,Cint), s, buf, len, flags)
 
 # Fine-grained alternative to nn_send
 ####### nn_sendmsg(3)
@@ -229,14 +231,14 @@ _nn_recv(s::Cint, buf::Ptr{Void}, len::Csize_t, flags::Cint) = ccall((:nn_recv, 
 ####### nn_allocmsg(3)
 ####### nn_reallocmsg(3)
 
-_nn_freemsg(buf::Ptr{Void}) = ccall((:nn_freemsg, LIB), Cint, (Ptr{Void},), buf)
+_nn_freemsg(buf::Ptr{Nothing}) = ccall((:nn_freemsg, LIB), Cint, (Ptr{Nothing},), buf)
 
 
 # Manipulation of message control data
 ####### nn_cmsg(3)
 
 # Multiplexing
-_nn_poll(fds::Ptr{Void}, nfds::Cint, timeout::Cint) = ccall((:nn_poll, LIB), Cint, (Ptr{Void},Cint,Cint), fds, nfds, timeout)
+_nn_poll(fds::Ptr{Nothing}, nfds::Cint, timeout::Cint) = ccall((:nn_poll, LIB), Cint, (Ptr{Nothing},Cint,Cint), fds, nfds, timeout)
 
 # Retrieve the current errno
 _nn_errno() = ccall((:nn_errno, LIB), Cint, ())
@@ -271,7 +273,7 @@ _nn_symbol(i::Cint, value::Ptr{UInt8}) = ccall((:nn_symbol, LIB), Ptr{UInt8}, (C
 # Query properties of nanomsg symbols
 function _nn_symbol_info(i::Cint)
 	buflen = sizeof(_NNSymbolProperties)
-	buf = Array{UInt8}(buflen)
+	buf = Array{UInt8}(undef, buflen)
 
 	r = ccall((:nn_symbol_info, LIB), Cint, (Cint,Ptr{UInt8},Csize_t), i, buf, buflen)
 
@@ -291,7 +293,7 @@ end
 _nn_device(s1::Cint, s2::Cint) = ccall((:nn_device, LIB), Cint, (Cint,Cint), s1, s2)
 
 # Notify all sockets about process termination
-_nn_term() = ccall((:nn_term, LIB), Void, ())
+_nn_term() = ccall((:nn_term, LIB), Nothing, ())
 
 function j_nn_load_symbols()
 	symbols = Dict{Cint, Dict{Cint, AbstractString}}()
@@ -346,8 +348,8 @@ end
 # nanomg library. Refer to the official docs for a list
 baremodule CSymbols
 	using Base
-	using Nanomsg.j_nn_load_symbols
-	using Nanomsg.@load_symbols
+	using Nanomsg: j_nn_load_symbols
+	using Nanomsg: @load_symbols
 
 	const J_NN_MAP = j_nn_load_symbols()
 
