@@ -1,6 +1,6 @@
 # Julia Nanomsg Bindings
 
-For v0.6.x
+For v1.0.X
 
 ## nn_poll
 
